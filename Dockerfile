@@ -10,7 +10,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-
     -o /usr/local/bin/wp \
     && chmod +x /usr/local/bin/wp
 
-ENV WP_URL=http://localhost:8081 \
+ENV WP_URL=http://localhost:8080 \
     WP_TITLE="Tienda Test" \
     WP_ADMIN_USER=admin \
     WP_ADMIN_PASSWORD=admin123 \
@@ -24,8 +24,9 @@ ENV WP_URL=http://localhost:8081 \
     DEMO_PRODUCT_NAME="Máscara artesanal costarricense" \
     DEMO_PRODUCT_PRICE=15000
 
-
 COPY start.sh /start.sh
 RUN chmod +x /start.sh
+
+EXPOSE 80
 
 ENTRYPOINT ["/start.sh"]
