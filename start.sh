@@ -46,6 +46,20 @@ if ! $WP core is-installed; then
 
   echo "Instalando WordPress..."
 
+  # Si es localhost
+  if  [[ $WP_URL == *"localhost"* ]]; then
+    PUBLIC_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4) || true
+
+    if [[ -n "$PUBLIC_IP" ]]; then
+      WP_URL="http://$PUBLIC_IP"
+      echo "Usando IP pública: $WP_URL"
+    else
+      WP_URL="http://localhost:8080"
+      echo "No se pudo obtener IP pública, manteniendo localhost"
+    fi
+  fi
+
+
   $WP core install \
     --url="$WP_URL" \
     --title="$WP_TITLE" \
@@ -62,6 +76,8 @@ if ! $WP core is-installed; then
   until $WP option get woocommerce_db_version > /dev/null 2>&1; do
     sleep 2
   done
+
+  echo "$WP_URL"
 
   echo "WooCommerce listo."
 
