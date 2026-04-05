@@ -29,11 +29,27 @@ fi
 
 if [ ! -f wp-config.php ]; then
   echo "Creando wp-config.php..."
+
   $WP config create \
     --dbname=wp \
     --dbuser=wpuser \
     --dbpass=wppass \
     --dbhost=127.0.0.1
+
+  echo "Inyectando configuración dinámica..."
+
+  awk '
+  /That'\''s all, stop editing!/ {
+    print "if (php_sapi_name() !== \"cli\" && isset(\$_SERVER[\"HTTP_HOST\"])) {"
+    print "    \$protocol = (!empty(\$_SERVER[\"HTTPS\"]) && \$_SERVER[\"HTTPS\"] !== \"off\") ? \"https\" : \"http\";"
+    print "    define(\"WP_HOME\", \$protocol . \"://\" . \$_SERVER[\"HTTP_HOST\"]);"
+    print "    define(\"WP_SITEURL\", \$protocol . \"://\" . \$_SERVER[\"HTTP_HOST\"]);"
+    print "}"
+    print ""
+  }
+  { print }
+  ' wp-config.php > wp-config.tmp && mv wp-config.tmp wp-config.php
+
 fi
 
 until $WP db check > /dev/null 2>&1; do

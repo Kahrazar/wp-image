@@ -10,8 +10,7 @@ RUN curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-
     -o /usr/local/bin/wp \
     && chmod +x /usr/local/bin/wp
 
-ENV WP_URL=http://localhost:8080 \
-    WP_TITLE="Tienda Test" \
+ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_USER=admin \
     WP_ADMIN_PASSWORD=admin123 \
     WP_ADMIN_EMAIL=admin@test.com \
@@ -21,6 +20,7 @@ ENV WP_URL=http://localhost:8080 \
     STORE_ADDRESS="Heredia" \
     STORE_POSTCODE="40101" \
     DEMO_CATEGORY="Artesanías" \
+    WP_URL="http://localhost:8080" \
     DEMO_PRODUCT_NAME="Máscara artesanal costarricense" \
     DEMO_PRODUCT_PRICE=15000
 
