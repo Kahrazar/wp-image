@@ -114,7 +114,7 @@ if ! $WP core is-installed; then
   echo "Desactivando onboarding de WooCommerce..."
 
   $WP option update woocommerce_onboarding_profile '{"completed": true, "skipped": true}' --format=json
-  $WP option update woocommerce_task_list_complete yes
+  #$WP option update woocommerce_task_list_complete yes
   $WP option update woocommerce_setup_wizard_completed yes
   $WP option update woocommerce_onboarding_opt_in no
   $WP option update woocommerce_admin_install_timestamp $(date +%s)
