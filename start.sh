@@ -13,8 +13,13 @@ echo "MySQL listo."
 
 mysql -uroot <<EOF
 CREATE DATABASE IF NOT EXISTS wp;
+
 CREATE USER IF NOT EXISTS 'wpuser'@'localhost' IDENTIFIED BY 'wppass';
+CREATE USER IF NOT EXISTS 'wpuser'@'127.0.0.1' IDENTIFIED BY 'wppass';
+
 GRANT ALL PRIVILEGES ON wp.* TO 'wpuser'@'localhost';
+GRANT ALL PRIVILEGES ON wp.* TO 'wpuser'@'127.0.0.1';
+
 FLUSH PRIVILEGES;
 EOF
 
@@ -34,24 +39,33 @@ if [ ! -f wp-config.php ]; then
     --dbname=wp \
     --dbuser=wpuser \
     --dbpass=wppass \
-    --dbhost=127.0.0.1
+    --dbhost=127.0.0.1 \
+    --skip-check
+
+  if [ ! -f wp-config.php ]; then
+    echo "❌ wp-config.php no se creó"
+    exit 1
+  fi
 
   echo "Inyectando configuración dinámica..."
 
   awk '
   /That'\''s all, stop editing!/ {
-    print "if (php_sapi_name() !== \"cli\" && isset(\$_SERVER[\"HTTP_HOST\"])) {"
-    print "    \$protocol = (!empty(\$_SERVER[\"HTTPS\"]) && \$_SERVER[\"HTTPS\"] !== \"off\") ? \"https\" : \"http\";"
-    print "    define(\"WP_HOME\", \$protocol . \"://\" . \$_SERVER[\"HTTP_HOST\"]);"
-    print "    define(\"WP_SITEURL\", \$protocol . \"://\" . \$_SERVER[\"HTTP_HOST\"]);"
+    print "if (isset($_SERVER[\"HTTP_HOST\"])) {"
+    print "    $_SERVER[\"HTTPS\"] = \"on\";"
+    print "    define(\"WP_HOME\", \"https://\" . $_SERVER[\"HTTP_HOST\"]);"
+    print "    define(\"WP_SITEURL\", \"https://\" . $_SERVER[\"HTTP_HOST\"]);"
     print "}"
     print ""
   }
   { print }
   ' wp-config.php > wp-config.tmp && mv wp-config.tmp wp-config.php
-
 fi
-
+ 
+echo "Config terminada"
+echo "DEBUG DB CHECK:"
+$WP db check || true
+echo "Revisando BD"
 until $WP db check > /dev/null 2>&1; do
   sleep 2
 done
@@ -67,14 +81,13 @@ if ! $WP core is-installed; then
     PUBLIC_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4) || true
 
     if [[ -n "$PUBLIC_IP" ]]; then
-      WP_URL="http://$PUBLIC_IP"
+      WP_URL="https://$PUBLIC_IP"
       echo "Usando IP pública: $WP_URL"
     else
-      WP_URL="http://localhost:8080"
+      WP_URL="https://localhost:8080"
       echo "No se pudo obtener IP pública, manteniendo localhost"
     fi
   fi
-
 
   $WP core install \
     --url="$WP_URL" \
