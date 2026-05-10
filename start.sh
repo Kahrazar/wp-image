@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# =========================
+# Startup
+# =========================
+
 echo "Iniciando MySQL..."
 
 mariadbd-safe --datadir=/var/lib/mysql &
@@ -10,6 +14,10 @@ until mysqladmin ping -h127.0.0.1 --silent; do
 done
 
 echo "MySQL listo."
+
+# =========================
+# MySQL Database Setup
+# =========================
 
 mysql -uroot <<EOF
 CREATE DATABASE IF NOT EXISTS wp;
@@ -23,14 +31,26 @@ GRANT ALL PRIVILEGES ON wp.* TO 'wpuser'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOF
 
+# =========================
+# WordPress CLI Setup
+# =========================
+
 cd /var/www/html
 
 WP="php -d memory_limit=512M /usr/local/bin/wp --allow-root"
+
+# =========================
+# WordPress Core Download
+# =========================
 
 if [ ! -f wp-load.php ]; then
   echo "Descargando WordPress..."
   $WP core download
 fi
+
+# =========================
+# WP Config
+# =========================
 
 if [ ! -f wp-config.php ]; then
   echo "Creando wp-config.php..."
@@ -62,6 +82,10 @@ if [ ! -f wp-config.php ]; then
   ' wp-config.php > wp-config.tmp && mv wp-config.tmp wp-config.php
 fi
  
+# =========================
+# Database Verification
+# =========================
+
 echo "Config terminada"
 echo "DEBUG DB CHECK:"
 $WP db check || true
@@ -71,6 +95,10 @@ until $WP db check > /dev/null 2>&1; do
 done
 
 echo "Base de datos verificada."
+
+# =========================
+# WordPress Installation
+# =========================
 
 if ! $WP core is-installed; then
 
@@ -96,6 +124,10 @@ if ! $WP core is-installed; then
     --admin_password="$WP_ADMIN_PASSWORD" \
     --admin_email="$WP_ADMIN_EMAIL"
 
+# =========================
+# WooCommerce Installation
+# =========================
+
   echo "Instalando WooCommerce..."
 
   $WP plugin install woocommerce --activate
@@ -109,6 +141,10 @@ if ! $WP core is-installed; then
   echo "$WP_URL"
 
   echo "WooCommerce listo."
+
+# =========================
+# WooCommerce Store Settings
+# =========================
 
   echo "Configurando WooCommerce..."
 
@@ -132,6 +168,10 @@ if ! $WP core is-installed; then
   $WP option update woocommerce_onboarding_opt_in no
   $WP option update woocommerce_admin_install_timestamp $(date +%s)
 
+# =========================
+# Demo Product Setup
+# =========================
+
   echo "Creando categoría..."
 
   CATEGORY_ID=$($WP wc product_cat create \
@@ -150,14 +190,100 @@ if ! $WP core is-installed; then
     --categories='[{"id":'"$CATEGORY_ID"'}]' \
     --user="$WP_ADMIN_USER"
 
-  echo "Instalando tema Kadence..."
+# =========================
+# Storefront Child Theme Setup
+# =========================
 
-  $WP theme install kadence --activate
-  $WP plugin install kadence-blocks --activate
+  echo "Instalando Storefront..."
+
+  $WP theme install storefront --activate
+
+  echo "Copiando Child Theme..."
+
+  if [ ! -d /local-theme/storefront-eiemprende ]; then
+    echo "Descargando Child Theme..."
+    mkdir -p /local-theme
+    git clone --depth 1 https://github.com/Kahrazar/storefront-eiemprende.git \
+      /local-theme/storefront-eiemprende
+  fi
+
+  mkdir -p /var/www/html/wp-content/themes
+  rm -rf /var/www/html/wp-content/themes/storefront-eiemprende
+  cp -r /local-theme/storefront-eiemprende \
+    /var/www/html/wp-content/themes/storefront-eiemprende
+
+  echo "Corrigiendo permisos..."
+
+  chown -R www-data:www-data /var/www/html/wp-content
+
+  echo "Activando Child Theme..."
+
+  $WP theme activate storefront-eiemprende
+
+# =========================
+# WooCommerce Page Setup
+# =========================
+
+  echo "Configurando permalinks..."
+
+  $WP rewrite structure '/%postname%/'
+  $WP rewrite flush
+
+  echo "Configurando Shop como homepage..."
+
+  SHOP_PAGE_ID=$($WP option get woocommerce_shop_page_id)
+
+  if [[ -n "$SHOP_PAGE_ID" && "$SHOP_PAGE_ID" != "0" ]]; then
+    $WP option update show_on_front 'page'
+    $WP option update page_on_front "$SHOP_PAGE_ID"
+  else
+    echo "No se encontro la pagina Shop."
+  fi
+
+# =========================
+# Child Theme Configuration
+# =========================
+
+  echo "Configurando Child Theme..."
+
+  if ! $WP menu list --fields=slug --format=csv | grep -qx primary-menu; then
+    echo "Creando menu principal..."
+    $WP menu create "Primary Menu"
+  fi
+
+  echo "Obteniendo paginas WooCommerce..."
+
+  CART_PAGE_ID=$($WP option get woocommerce_cart_page_id)
+  CHECKOUT_PAGE_ID=$($WP option get woocommerce_checkout_page_id)
+  ACCOUNT_PAGE_ID=$($WP option get woocommerce_myaccount_page_id)
+
+  echo "Configurando navegacion..."
+
+  for PAGE_ID in "$SHOP_PAGE_ID" "$CART_PAGE_ID" "$CHECKOUT_PAGE_ID" "$ACCOUNT_PAGE_ID"; do
+    if [[ -n "$PAGE_ID" && "$PAGE_ID" != "0" ]]; then
+      $WP menu item add-post primary-menu "$PAGE_ID"
+    fi
+  done
+
+  $WP menu location assign primary-menu primary
+
+# =========================
+# Branding
+# =========================
+
+  echo "Configurando branding..."
+
+  $WP option update my_primary_color "${PRIMARY_COLOR}"
+  $WP option update my_secondary_color "${SECONDARY_COLOR}"
+  $WP option update my_accent_color "${ACCENT_COLOR}"
 
 else
   echo "WordPress ya está instalado."
 fi
+
+# =========================
+# Apache Startup
+# =========================
 
 echo "Iniciando Apache..."
 
