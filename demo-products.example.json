@@ -1,0 +1,16 @@
+[
+  {
+    "name": "Mascara Boruca",
+    "price": "25000",
+    "category": "Artesanias",
+    "description": "Bella mascara artesanal",
+    "short_description": "Producto inicial."
+  },
+  {
+    "name": "Canasta artesanal",
+    "price": "18000",
+    "category": "Artesanias",
+    "description": "Bella canasta artesanal",
+    "short_description": "Producto inicial."
+  }
+]

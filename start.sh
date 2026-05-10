@@ -63,11 +63,11 @@ if [ ! -f wp-config.php ]; then
     --skip-check
 
   if [ ! -f wp-config.php ]; then
-    echo "❌ wp-config.php no se creó"
+    echo "âŒ wp-config.php no se creÃ³"
     exit 1
   fi
 
-  echo "Inyectando configuración dinámica..."
+  echo "Inyectando configuraciÃ³n dinÃ¡mica..."
 
   awk '
   /That'\''s all, stop editing!/ {
@@ -110,10 +110,10 @@ if ! $WP core is-installed; then
 
     if [[ -n "$PUBLIC_IP" ]]; then
       WP_URL="https://$PUBLIC_IP"
-      echo "Usando IP pública: $WP_URL"
+      echo "Usando IP pÃºblica: $WP_URL"
     else
       WP_URL="https://localhost:8080"
-      echo "No se pudo obtener IP pública, manteniendo localhost"
+      echo "No se pudo obtener IP pÃºblica, manteniendo localhost"
     fi
   fi
 
@@ -132,7 +132,7 @@ if ! $WP core is-installed; then
 
   $WP plugin install woocommerce --activate
 
-  echo "Esperando a que WooCommerce termine su instalación..."
+  echo "Esperando a que WooCommerce termine su instalaciÃ³n..."
 
   until $WP option get woocommerce_db_version > /dev/null 2>&1; do
     sleep 2
@@ -172,23 +172,125 @@ if ! $WP core is-installed; then
 # Demo Product Setup
 # =========================
 
-  echo "Creando categoría..."
 
-  CATEGORY_ID=$($WP wc product_cat create \
-    --name="$DEMO_CATEGORY" \
-    --user="$WP_ADMIN_USER" \
-    --porcelain)
+  get_or_create_product_category() {
+    local category_name="$1"
+    local category_id
 
-  echo "Creando producto demo..."
+    category_id=$($WP term list product_cat \
+      --name="$category_name" \
+      --field=term_id | head -n 1 || true)
 
-  $WP wc product create \
-    --name="$DEMO_PRODUCT_NAME" \
-    --type=simple \
-    --regular_price="$DEMO_PRODUCT_PRICE" \
-    --description="Producto demo generado automáticamente." \
-    --short_description="Producto demo." \
-    --categories='[{"id":'"$CATEGORY_ID"'}]' \
-    --user="$WP_ADMIN_USER"
+    if [[ -z "$category_id" ]]; then
+      category_id=$($WP wc product_cat create \
+        --name="$category_name" \
+        --user="$WP_ADMIN_USER" \
+        --porcelain)
+    fi
+
+    echo "$category_id"
+  }
+
+  create_initial_product() {
+    local product_name="$1"
+    local product_price="$2"
+    local product_category="$3"
+    local product_description="$4"
+    local product_short_description="$5"
+    local category_id
+
+    if [[ -z "$product_name" || -z "$product_price" ]]; then
+      echo "Saltando producto inicial sin nombre o precio."
+      return
+    fi
+
+    if [[ -z "$product_category" ]]; then
+      product_category="${DEMO_CATEGORY:-Demo}"
+    fi
+
+    category_id=$(get_or_create_product_category "$product_category")
+
+    echo "Creando producto inicial: $product_name"
+
+    $WP wc product create \
+      --name="$product_name" \
+      --type=simple \
+      --regular_price="$product_price" \
+      --description="$product_description" \
+      --short_description="$product_short_description" \
+      --categories='[{"id":'"$category_id"'}]' \
+      --user="$WP_ADMIN_USER"
+  }
+
+  PRODUCTS_FILE="${DEMO_PRODUCTS_FILE:-}"
+
+  if [[ -n "$DEMO_PRODUCTS_B64" ]]; then
+    PRODUCTS_FILE="/tmp/demo-products.json"
+    echo "$DEMO_PRODUCTS_B64" | base64 -d > "$PRODUCTS_FILE"
+  elif [[ -n "$DEMO_PRODUCTS_JSON" ]]; then
+    PRODUCTS_FILE="/tmp/demo-products.json"
+    printf '%s' "$DEMO_PRODUCTS_JSON" > "$PRODUCTS_FILE"
+  fi
+
+  if [[ -n "$PRODUCTS_FILE" && -f "$PRODUCTS_FILE" ]]; then
+    echo "Creando productos iniciales desde $PRODUCTS_FILE..."
+
+    while IFS=$'\t' read -r NAME_B64 PRICE_B64 CATEGORY_B64 DESCRIPTION_B64 SHORT_DESCRIPTION_B64; do
+      PRODUCT_NAME=$(printf '%s' "$NAME_B64" | base64 -d)
+      PRODUCT_PRICE=$(printf '%s' "$PRICE_B64" | base64 -d)
+      PRODUCT_CATEGORY=$(printf '%s' "$CATEGORY_B64" | base64 -d)
+      PRODUCT_DESCRIPTION=$(printf '%s' "$DESCRIPTION_B64" | base64 -d)
+      PRODUCT_SHORT_DESCRIPTION=$(printf '%s' "$SHORT_DESCRIPTION_B64" | base64 -d)
+
+      create_initial_product \
+        "$PRODUCT_NAME" \
+        "$PRODUCT_PRICE" \
+        "$PRODUCT_CATEGORY" \
+        "$PRODUCT_DESCRIPTION" \
+        "$PRODUCT_SHORT_DESCRIPTION"
+    done < <(php -r '
+      $file = $argv[1];
+      $data = json_decode(file_get_contents($file), true);
+
+      if (!is_array($data)) {
+        fwrite(STDERR, "Invalid products JSON: {$file}\n");
+        exit(1);
+      }
+
+      $products = $data["products"] ?? $data;
+
+      if (!is_array($products)) {
+        fwrite(STDERR, "Products JSON must be an array or contain a products array: {$file}\n");
+        exit(1);
+      }
+
+      foreach ($products as $product) {
+        if (!is_array($product)) {
+          continue;
+        }
+
+        $fields = [
+          $product["name"] ?? "",
+          $product["price"] ?? "",
+          $product["category"] ?? "",
+          $product["description"] ?? "Producto demo generado automaticamente.",
+          $product["short_description"] ?? "Producto demo."
+        ];
+
+        echo implode("\t", array_map("base64_encode", $fields)) . "\n";
+      }
+    ' "$PRODUCTS_FILE")
+  else
+    echo "Creando producto demo desde variables de entorno..."
+
+    create_initial_product \
+      "$DEMO_PRODUCT_NAME" \
+      "$DEMO_PRODUCT_PRICE" \
+      "$DEMO_CATEGORY" \
+      "Producto demo generado automaticamente." \
+      "Producto demo."
+  fi
+
 
 # =========================
 # Storefront Child Theme Setup
@@ -278,7 +380,7 @@ if ! $WP core is-installed; then
   $WP option update my_accent_color "${ACCENT_COLOR}"
 
 else
-  echo "WordPress ya está instalado."
+  echo "WordPress ya estÃ¡ instalado."
 fi
 
 # =========================
