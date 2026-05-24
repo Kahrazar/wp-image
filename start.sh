@@ -124,6 +124,10 @@ if ! $WP core is-installed; then
     --admin_password="$WP_ADMIN_PASSWORD" \
     --admin_email="$WP_ADMIN_EMAIL"
 
+  echo "Configurando permalink custom structure..."
+
+  $WP option update permalink_structure '/%postname%/'
+
 # =========================
 # WooCommerce Installation
 # =========================
@@ -154,8 +158,6 @@ if ! $WP core is-installed; then
 
   $WP option update woocommerce_currency "$WC_CURRENCY"
   $WP option update woocommerce_default_country "$STORE_COUNTRY"
-
-  #$WP option update woocommerce_store_country "$STORE_COUNTRY"
   $WP option update woocommerce_store_address "$STORE_ADDRESS"
   $WP option update woocommerce_store_city "$STORE_CITY"
   $WP option update woocommerce_store_postcode "$STORE_POSTCODE"
@@ -167,6 +169,49 @@ if ! $WP core is-installed; then
   $WP option update woocommerce_setup_wizard_completed yes
   $WP option update woocommerce_onboarding_opt_in no
   $WP option update woocommerce_admin_install_timestamp $(date +%s)
+
+# =========================
+# Shopia Chatbot Assistant Plugin Setup
+# =========================
+
+  echo "Instalando Shopia Chatbot Assistant..."
+
+  if [ ! -d /local-plugins/shopia-chatbot-assistant ]; then
+    echo "Descargando Shopia Chatbot Assistant..."
+    mkdir -p /local-plugins
+    git clone --depth 1 --branch "${SHOPIA_PLUGIN_REF:-main}" \
+      "${SHOPIA_PLUGIN_REPO:-https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git}" \
+      /local-plugins/shopia-chatbot-assistant
+    rm -rf /local-plugins/shopia-chatbot-assistant/.git
+  fi
+
+  mkdir -p /var/www/html/wp-content/plugins
+  rm -rf /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+  cp -r /local-plugins/shopia-chatbot-assistant \
+    /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+
+  chown -R www-data:www-data /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+
+  if ! $WP --url="$WP_URL" plugin is-active shopia-chatbot-assistant; then
+    $WP --url="$WP_URL" plugin activate shopia-chatbot-assistant
+  fi
+
+  echo "Ejecutando provisioning de Shopia..."
+
+  $WP --url="$WP_URL" eval '
+    $wp_url = getenv( "WP_URL" ) ?: get_option( "siteurl" );
+    $wp_host = parse_url( $wp_url, PHP_URL_HOST );
+    if ( $wp_host ) {
+      $_SERVER["HTTP_HOST"] = $wp_host;
+    }
+    if ( 0 === strpos( $wp_url, "https://" ) ) {
+      $_SERVER["HTTPS"] = "on";
+    }
+
+    if ( class_exists( "Shopia_Chatbot_Assistant_Provision" ) ) {
+      Shopia_Chatbot_Assistant_Provision::maybe_run_pending_provision();
+    }
+  '
 
 # =========================
 # Demo Product Setup
@@ -322,16 +367,6 @@ if ! $WP core is-installed; then
 
   $WP theme activate storefront-eiemprende
 
-# =========================
-# WooCommerce Page Setup
-# =========================
-
-  echo "Configurando permalinks..."
-
-  $WP rewrite structure '/%postname%/'
-  $WP rewrite flush
-
-  echo "Configurando Shop como homepage..."
 
   SHOP_PAGE_ID=$($WP option get woocommerce_shop_page_id)
 
@@ -378,6 +413,14 @@ if ! $WP core is-installed; then
   $WP option update my_primary_color "${PRIMARY_COLOR}"
   $WP option update my_secondary_color "${SECONDARY_COLOR}"
   $WP option update my_accent_color "${ACCENT_COLOR}"
+
+# =========================
+# WooCommerce Page Setup
+# =========================
+  echo "Configurando permalinks..."
+  $WP rewrite structure '/%postname%/' --hard
+  $WP rewrite flush --hard
+  echo "Configurando Shop como homepage..."
 
 else
   echo "WordPress ya estÃ¡ instalado."

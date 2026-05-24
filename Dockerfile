@@ -10,9 +10,20 @@ RUN curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-
     -o /usr/local/bin/wp \
     && chmod +x /usr/local/bin/wp
 
+RUN mkdir -p /root/.wp-cli \
+    && printf "apache_modules:\n  - mod_rewrite\n" > /root/.wp-cli/config.yml
+
 RUN mkdir -p /local-theme \
     && git clone --depth 1 https://github.com/Kahrazar/storefront-eiemprende.git \
     /local-theme/storefront-eiemprende
+
+ARG SHOPIA_PLUGIN_REPO=https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git
+ARG SHOPIA_PLUGIN_REF=main
+
+RUN mkdir -p /local-plugins \
+    && git clone --depth 1 --branch "$SHOPIA_PLUGIN_REF" "$SHOPIA_PLUGIN_REPO" \
+    /local-plugins/shopia-chatbot-assistant \
+    && rm -rf /local-plugins/shopia-chatbot-assistant/.git
 
 ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_USER=admin \
@@ -30,13 +41,17 @@ ENV WP_TITLE="Tienda Test" \
     DEMO_PRODUCTS_FILE="" \
     DEMO_PRODUCTS_JSON="" \
     DEMO_PRODUCTS_B64="" \
+    SHOPIA_PLUGIN_REPO="https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git" \
+    SHOPIA_PLUGIN_REF="main" \
     PRIMARY_COLOR="#2f6f4e" \
     SECONDARY_COLOR="#f2c14e" \
     ACCENT_COLOR="#c44536"
 
 COPY start.sh /start.sh
-RUN chmod +x /start.sh
+
+RUN sed -i 's/\r$//' /start.sh \
+    && chmod +x /start.sh
 
 EXPOSE 80
 
-ENTRYPOINT ["/start.sh"]
+ENTRYPOINT ["bash", "/start.sh"]
