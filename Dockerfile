@@ -43,6 +43,7 @@ ENV WP_TITLE="Tienda Test" \
     DEMO_PRODUCTS_B64="" \
     SHOPIA_PLUGIN_REPO="https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git" \
     SHOPIA_PLUGIN_REF="main" \
+    MCP_BEARER_TOKEN="CHANGE_ME" \
     PRIMARY_COLOR="#2f6f4e" \
     SECONDARY_COLOR="#f2c14e" \
     ACCENT_COLOR="#c44536"
