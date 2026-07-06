@@ -381,6 +381,27 @@ if ! $WP core is-installed; then
   echo "Configurando Shop como homepage..."
 
 # =========================
+# WPTravelly Plugin Setup
+# =========================
+
+  case "${BOOKING_ENABLED:-false}" in
+    true|TRUE|1|yes|YES|on|ON)
+      echo "Instalando WPTravelly..."
+
+      if ! $WP plugin is-installed tour-booking-manager; then
+        $WP plugin install tour-booking-manager
+      fi
+
+      if ! $WP plugin is-active tour-booking-manager; then
+        $WP plugin activate tour-booking-manager
+      fi
+      ;;
+    *)
+      echo "WPTravelly deshabilitado."
+      ;;
+  esac
+
+# =========================
 # Shopia Chatbot Assistant Plugin Setup
 # =========================
 

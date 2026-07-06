@@ -30,6 +30,7 @@ ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_PASSWORD=admin123 \
     WP_ADMIN_EMAIL=admin@test.com \
     WC_CURRENCY=CRC \
+    BOOKING_ENABLED=false \
     SITE_DOMAIN=https://domain.com \
     STORE_COUNTRY="CR:SJ" \
     STORE_CITY="Heredia" \
