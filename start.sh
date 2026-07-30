@@ -38,6 +38,21 @@ EOF
 cd /var/www/html
 
 WP="php -d memory_limit=512M /usr/local/bin/wp --allow-root"
+WP_PROTOCOL="${WP_PROTOCOL:-https}"
+WP_LOCALE="${WP_LOCALE:-es_ES}"
+
+case "$WP_PROTOCOL" in
+  http|HTTP)
+    WP_PROTOCOL="http"
+    ;;
+  https|HTTPS)
+    WP_PROTOCOL="https"
+    ;;
+  *)
+    echo "WP_PROTOCOL invalido: $WP_PROTOCOL. Usando https."
+    WP_PROTOCOL="https"
+    ;;
+esac
 
 # =========================
 # WordPress Core Download
@@ -45,7 +60,7 @@ WP="php -d memory_limit=512M /usr/local/bin/wp --allow-root"
 
 if [ ! -f wp-load.php ]; then
   echo "Descargando WordPress..."
-  $WP core download
+  $WP core download --locale="$WP_LOCALE"
 fi
 
 # =========================
@@ -71,10 +86,16 @@ if [ ! -f wp-config.php ]; then
 
   awk '
   /That'\''s all, stop editing!/ {
-    print "if (isset($_SERVER[\"HTTP_HOST\"])) {"
+    print "$wp_protocol = strtolower(getenv(\"WP_PROTOCOL\") ?: \"https\");"
+    print "if (!in_array($wp_protocol, array(\"http\", \"https\"), true)) {"
+    print "    $wp_protocol = \"https\";"
+    print "}"
+    print "if ($wp_protocol === \"https\") {"
     print "    $_SERVER[\"HTTPS\"] = \"on\";"
-    print "    define(\"WP_HOME\", \"https://\" . $_SERVER[\"HTTP_HOST\"]);"
-    print "    define(\"WP_SITEURL\", \"https://\" . $_SERVER[\"HTTP_HOST\"]);"
+    print "}"
+    print "if (isset($_SERVER[\"HTTP_HOST\"])) {"
+    print "    define(\"WP_HOME\", $wp_protocol . \"://\" . $_SERVER[\"HTTP_HOST\"]);"
+    print "    define(\"WP_SITEURL\", $wp_protocol . \"://\" . $_SERVER[\"HTTP_HOST\"]);"
     print "}"
     print "define(\"SITE_DOMAIN\", getenv(\"SITE_DOMAIN\") ?: \"\");"
     print ""
@@ -110,10 +131,10 @@ if ! $WP core is-installed; then
     PUBLIC_IP=$(curl -s --max-time 2 http://169.254.169.254/latest/meta-data/public-ipv4) || true
 
     if [[ -n "$PUBLIC_IP" ]]; then
-      WP_URL="https://$PUBLIC_IP"
+      WP_URL="$WP_PROTOCOL://$PUBLIC_IP"
       echo "Usando IP pÃºblica: $WP_URL"
     else
-      WP_URL="https://localhost:8080"
+      WP_URL="$WP_PROTOCOL://localhost:8080"
       echo "No se pudo obtener IP pÃºblica, manteniendo localhost"
     fi
   fi
@@ -123,7 +144,13 @@ if ! $WP core is-installed; then
     --title="$WP_TITLE" \
     --admin_user="$WP_ADMIN_USER" \
     --admin_password="$WP_ADMIN_PASSWORD" \
-    --admin_email="$WP_ADMIN_EMAIL"
+    --admin_email="$WP_ADMIN_EMAIL" \
+    --locale="$WP_LOCALE"
+
+  CURRENT_LOCALE=$($WP option get WPLANG 2>/dev/null || true)
+  if [ "$CURRENT_LOCALE" != "$WP_LOCALE" ]; then
+    $WP language core install "$WP_LOCALE" --activate
+  fi
 
   echo "Configurando permalink custom structure..."
 
@@ -296,35 +323,50 @@ if ! $WP core is-installed; then
 
 
 # =========================
-# Storefront Child Theme Setup
+# Kadence Theme Setup
 # =========================
 
-  echo "Instalando Storefront..."
+  echo "Instalando Kadence..."
 
-  $WP theme install storefront --activate
-
-  echo "Copiando Child Theme..."
-
-  if [ ! -d /local-theme/storefront-eiemprende ]; then
-    echo "Descargando Child Theme..."
-    mkdir -p /local-theme
-    git clone --depth 1 https://github.com/Kahrazar/storefront-eiemprende.git \
-      /local-theme/storefront-eiemprende
+  if ! $WP theme is-installed kadence; then
+    $WP theme install kadence
   fi
-
-  mkdir -p /var/www/html/wp-content/themes
-  rm -rf /var/www/html/wp-content/themes/storefront-eiemprende
-  cp -r /local-theme/storefront-eiemprende \
-    /var/www/html/wp-content/themes/storefront-eiemprende
 
   echo "Corrigiendo permisos..."
 
   chown -R www-data:www-data /var/www/html/wp-content
 
-  echo "Activando Child Theme..."
+  echo "Activando Kadence..."
 
-  $WP theme activate storefront-eiemprende
+  $WP theme activate kadence
 
+# =========================
+# Kadence Blocks Plugin Setup
+# =========================
+
+  echo "Instalando Kadence Blocks..."
+
+  if ! $WP plugin is-installed kadence-blocks; then
+    $WP plugin install kadence-blocks
+  fi
+
+  if ! $WP plugin is-active kadence-blocks; then
+    $WP plugin activate kadence-blocks
+  fi
+
+# =========================
+# Kadence Starter Templates Plugin Setup
+# =========================
+
+  echo "Instalando Kadence Starter Templates..."
+
+  if ! $WP plugin is-installed kadence-starter-templates; then
+    $WP plugin install kadence-starter-templates
+  fi
+
+  if ! $WP plugin is-active kadence-starter-templates; then
+    $WP plugin activate kadence-starter-templates
+  fi
 
   SHOP_PAGE_ID=$($WP option get woocommerce_shop_page_id)
 
@@ -336,10 +378,10 @@ if ! $WP core is-installed; then
   fi
 
 # =========================
-# Child Theme Configuration
+# Theme Configuration
 # =========================
 
-  echo "Configurando Child Theme..."
+  echo "Configurando tema..."
 
   if ! $WP menu list --fields=slug --format=csv | grep -qx primary-menu; then
     echo "Creando menu principal..."
@@ -368,9 +410,83 @@ if ! $WP core is-installed; then
 
   echo "Configurando branding..."
 
-  $WP option update my_primary_color "${PRIMARY_COLOR}"
-  $WP option update my_secondary_color "${SECONDARY_COLOR}"
-  $WP option update my_accent_color "${ACCENT_COLOR}"
+  PRIMARY_COLOR="${PRIMARY_COLOR:-#2f6f4e}"
+  SECONDARY_COLOR="${SECONDARY_COLOR:-#f2c14e}"
+  ACCENT_COLOR="${ACCENT_COLOR:-#c44536}"
+
+  $WP eval '
+    $primary = getenv("PRIMARY_COLOR") ?: "#2f6f4e";
+    $secondary = getenv("SECONDARY_COLOR") ?: "#f2c14e";
+    $accent = getenv("ACCENT_COLOR") ?: "#c44536";
+
+    update_option("my_primary_color", $primary, false);
+    update_option("my_secondary_color", $secondary, false);
+    update_option("my_accent_color", $accent, false);
+
+    $palette_item = function($color, $slug, $name) {
+      return array(
+        "color" => $color,
+        "slug" => $slug,
+        "name" => $name,
+      );
+    };
+
+    $active_palette = array(
+      $palette_item($primary, "palette1", "Palette Color 1"),
+      $palette_item($accent, "palette2", "Palette Color 2"),
+      $palette_item("#1A202C", "palette3", "Palette Color 3"),
+      $palette_item("#2D3748", "palette4", "Palette Color 4"),
+      $palette_item("#4A5568", "palette5", "Palette Color 5"),
+      $palette_item("#718096", "palette6", "Palette Color 6"),
+      $palette_item("#EDF2F7", "palette7", "Palette Color 7"),
+      $palette_item("#F7FAFC", "palette8", "Palette Color 8"),
+      $palette_item("#ffffff", "palette9", "Palette Color 9"),
+      $palette_item($secondary, "palette10", "Palette Color Complement"),
+      $palette_item("#13612e", "palette11", "Palette Color Success"),
+      $palette_item("#1159af", "palette12", "Palette Color Info"),
+      $palette_item("#b82105", "palette13", "Palette Color Alert"),
+      $palette_item("#f7630c", "palette14", "Palette Color Warning"),
+      $palette_item("#f5a524", "palette15", "Palette Color Rating"),
+    );
+
+    update_option(
+      "kadence_global_palette",
+      wp_json_encode(
+        array(
+          "palette" => $active_palette,
+          "second-palette" => $active_palette,
+          "third-palette" => $active_palette,
+          "active" => "palette",
+        )
+      ),
+      false
+    );
+
+    set_theme_mod("link_color", array("highlight" => "palette1", "highlight-alt" => "palette2", "highlight-alt2" => "palette10", "style" => "standard"));
+    set_theme_mod("buttons_color", array("color" => "palette9", "hover" => "palette9"));
+    set_theme_mod("buttons_background", array("color" => "palette1", "hover" => "palette2"));
+    set_theme_mod("buttons_secondary_color", array("color" => "palette3", "hover" => "palette9"));
+    set_theme_mod("buttons_secondary_background", array("color" => "palette10", "hover" => "palette2"));
+    set_theme_mod("header_wrap_background", array("desktop" => array("color" => "palette1")));
+    set_theme_mod("header_main_background", array("desktop" => array("color" => "palette1")));
+    set_theme_mod("primary_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
+    set_theme_mod("mobile_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
+    set_theme_mod("footer_wrap_background", array("desktop" => array("color" => "palette1")));
+    set_theme_mod("footer_bottom_background", array("desktop" => array("color" => "palette1")));
+    set_theme_mod("footer_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
+    set_theme_mod("logo_icon_color", array("color" => "palette9"));
+
+    $brand_typography = get_theme_mod("brand_typography", array());
+    if (!is_array($brand_typography)) {
+      $brand_typography = array();
+    }
+    $brand_typography["color"] = "palette9";
+    set_theme_mod("brand_typography", $brand_typography);
+
+    if (defined("WP_CLI") && WP_CLI) {
+      WP_CLI::success("Kadence branding configured.");
+    }
+  '
 
 # =========================
 # WooCommerce Page Setup
@@ -405,31 +521,34 @@ if ! $WP core is-installed; then
 # Shopia Chatbot Assistant Plugin Setup
 # =========================
 
-  echo "Instalando Shopia Chatbot Assistant..."
+  echo "Shopia Chatbot Assistant omitido temporalmente."
 
-  if [ ! -d /local-plugins/shopia-chatbot-assistant ]; then
-    echo "Descargando Shopia Chatbot Assistant..."
-    mkdir -p /local-plugins
-    git clone --depth 1 --branch "${SHOPIA_PLUGIN_REF:-main}" \
-      "${SHOPIA_PLUGIN_REPO:-https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git}" \
-      /local-plugins/shopia-chatbot-assistant
-    php /usr/local/bin/patch-shopia-plugin.php /local-plugins/shopia-chatbot-assistant
-    rm -rf /local-plugins/shopia-chatbot-assistant/.git
+  if false; then
+    echo "Instalando Shopia Chatbot Assistant..."
+
+    if [ ! -d /local-plugins/shopia-chatbot-assistant ]; then
+      echo "Descargando Shopia Chatbot Assistant..."
+      mkdir -p /local-plugins
+      git clone --depth 1 --branch "${SHOPIA_PLUGIN_REF:-main}" \
+        "${SHOPIA_PLUGIN_REPO:-https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git}" \
+        /local-plugins/shopia-chatbot-assistant
+      rm -rf /local-plugins/shopia-chatbot-assistant/.git
+    fi
+
+    mkdir -p /var/www/html/wp-content/plugins
+    rm -rf /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+    cp -r /local-plugins/shopia-chatbot-assistant \
+      /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+
+    chown -R www-data:www-data /var/www/html/wp-content/plugins/shopia-chatbot-assistant
+
+    if ! $WP plugin is-active shopia-chatbot-assistant; then
+      echo "Ejecutando provisioning de Shopia..."
+      $WP plugin activate shopia-chatbot-assistant
+      $WP mcp request provision --generate_keys=1 --persist_secret=1
+    fi
+    echo "Finalizo la ejecucion de Shopia"
   fi
-
-  mkdir -p /var/www/html/wp-content/plugins
-  rm -rf /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-  cp -r /local-plugins/shopia-chatbot-assistant \
-    /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-
-  chown -R www-data:www-data /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-
-  if ! $WP plugin is-active shopia-chatbot-assistant; then
-    echo "Ejecutando provisioning de Shopia..."
-    $WP plugin activate shopia-chatbot-assistant
-    $WP mcp request provision --generate_keys=1 --persist_secret=1
-  fi
-  echo "Finalizo la ejecucion de Shopia"
 
 
 else

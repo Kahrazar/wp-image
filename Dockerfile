@@ -13,17 +13,15 @@ RUN curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-
 RUN mkdir -p /root/.wp-cli \
     && printf "apache_modules:\n  - mod_rewrite\n" > /root/.wp-cli/config.yml
 
-RUN mkdir -p /local-theme \
-    && git clone --depth 1 https://github.com/Kahrazar/storefront-eiemprende.git \
-    /local-theme/storefront-eiemprende
-
 ARG SHOPIA_PLUGIN_REPO=https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git
 ARG SHOPIA_PLUGIN_REF=main
 
-RUN mkdir -p /local-plugins \
-    && git clone --depth 1 --branch "$SHOPIA_PLUGIN_REF" "$SHOPIA_PLUGIN_REPO" \
-    /local-plugins/shopia-chatbot-assistant \
-    && rm -rf /local-plugins/shopia-chatbot-assistant/.git
+# Shopia is temporarily omitted until the upstream repo restores a valid
+# WordPress plugin bootstrap file.
+# RUN mkdir -p /local-plugins \
+#     && git clone --depth 1 --branch "$SHOPIA_PLUGIN_REF" "$SHOPIA_PLUGIN_REPO" \
+#     /local-plugins/shopia-chatbot-assistant \
+#     && rm -rf /local-plugins/shopia-chatbot-assistant/.git
 
 ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_USER=admin \
@@ -37,6 +35,8 @@ ENV WP_TITLE="Tienda Test" \
     STORE_ADDRESS="Heredia" \
     STORE_POSTCODE="40101" \
     DEMO_CATEGORY="Artesanías" \
+    WP_PROTOCOL=https \
+    WP_LOCALE=es_ES \
     WP_URL="http://localhost:8080" \
     DEMO_PRODUCT_NAME="Máscara artesanal costarricense" \
     DEMO_PRODUCT_PRICE=15000 \
