@@ -23,6 +23,14 @@ ARG SHOPIA_PLUGIN_REF=main
 #     /local-plugins/shopia-chatbot-assistant \
 #     && rm -rf /local-plugins/shopia-chatbot-assistant/.git
 
+ARG COMPLETE_THEME_REPO=https://github.com/Kahrazar/wp-complete-theme.git
+ARG COMPLETE_THEME_REF=main
+
+RUN mkdir -p /local-templates \
+    && git clone --depth 1 --branch "$COMPLETE_THEME_REF" "$COMPLETE_THEME_REPO" \
+    /local-templates/wp-complete-theme \
+    && rm -rf /local-templates/wp-complete-theme/.git
+
 ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_USER=admin \
     WP_ADMIN_PASSWORD=admin123 \
@@ -45,15 +53,20 @@ ENV WP_TITLE="Tienda Test" \
     DEMO_PRODUCTS_B64="" \
     SHOPIA_PLUGIN_REPO="https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git" \
     SHOPIA_PLUGIN_REF="main" \
+    COMPLETE_THEME_REPO="https://github.com/Kahrazar/wp-complete-theme.git" \
+    COMPLETE_THEME_REF="main" \
+    COMPLETE_THEME_DIR="/local-templates/wp-complete-theme" \
+    COMPLETE_THEME_IMPORT_ENABLED=true \
     MCP_BEARER_TOKEN="CHANGE_ME" \
     PRIMARY_COLOR="#2f6f4e" \
     SECONDARY_COLOR="#f2c14e" \
     ACCENT_COLOR="#c44536"
 
 COPY start.sh /start.sh
+COPY import-complete-theme.sh /usr/local/bin/import-complete-theme.sh
 
-RUN sed -i 's/\r$//' /start.sh \
-    && chmod +x /start.sh
+RUN sed -i 's/\r$//' /start.sh /usr/local/bin/import-complete-theme.sh \
+    && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh
 
 EXPOSE 80
 

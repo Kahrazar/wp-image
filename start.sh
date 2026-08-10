@@ -134,8 +134,7 @@ if ! $WP core is-installed; then
       WP_URL="$WP_PROTOCOL://$PUBLIC_IP"
       echo "Usando IP pÃºblica: $WP_URL"
     else
-      WP_URL="$WP_PROTOCOL://localhost:8080"
-      echo "No se pudo obtener IP pÃºblica, manteniendo localhost"
+      echo "No se pudo obtener IP pÃºblica, manteniendo $WP_URL"
     fi
   fi
 
@@ -549,6 +548,12 @@ if ! $WP core is-installed; then
     fi
     echo "Finalizo la ejecucion de Shopia"
   fi
+
+# =========================
+# Complete Theme Import
+# =========================
+
+  /usr/local/bin/import-complete-theme.sh
 
 
 else
