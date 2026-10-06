@@ -60,8 +60,14 @@ esac
 
 if [ ! -f wp-load.php ]; then
   echo "Descargando WordPress..."
-  $WP core download --locale="$WP_LOCALE"
+  # Localized core releases can lag behind the latest WordPress release.
+  # Download core independently; install WP_LOCALE's language pack below.
+  $WP core download --locale=en_US
 fi
+
+# Install the managed color variables for frontend and block-editor requests.
+mkdir -p /var/www/html/wp-content/mu-plugins
+cp /usr/local/lib/wp-image/branding-styles.php /var/www/html/wp-content/mu-plugins/wp-image-branding.php
 
 # =========================
 # WP Config
@@ -146,8 +152,7 @@ if ! $WP core is-installed; then
     --admin_email="$WP_ADMIN_EMAIL" \
     --locale="$WP_LOCALE"
 
-  CURRENT_LOCALE=$($WP option get WPLANG 2>/dev/null || true)
-  if [ "$CURRENT_LOCALE" != "$WP_LOCALE" ]; then
+  if [ "$WP_LOCALE" != "en_US" ]; then
     $WP language core install "$WP_LOCALE" --activate
   fi
 
@@ -407,85 +412,7 @@ if ! $WP core is-installed; then
 # Branding
 # =========================
 
-  echo "Configurando branding..."
-
-  PRIMARY_COLOR="${PRIMARY_COLOR:-#2f6f4e}"
-  SECONDARY_COLOR="${SECONDARY_COLOR:-#f2c14e}"
-  ACCENT_COLOR="${ACCENT_COLOR:-#c44536}"
-
-  $WP eval '
-    $primary = getenv("PRIMARY_COLOR") ?: "#2f6f4e";
-    $secondary = getenv("SECONDARY_COLOR") ?: "#f2c14e";
-    $accent = getenv("ACCENT_COLOR") ?: "#c44536";
-
-    update_option("my_primary_color", $primary, false);
-    update_option("my_secondary_color", $secondary, false);
-    update_option("my_accent_color", $accent, false);
-
-    $palette_item = function($color, $slug, $name) {
-      return array(
-        "color" => $color,
-        "slug" => $slug,
-        "name" => $name,
-      );
-    };
-
-    $active_palette = array(
-      $palette_item($primary, "palette1", "Palette Color 1"),
-      $palette_item($accent, "palette2", "Palette Color 2"),
-      $palette_item("#1A202C", "palette3", "Palette Color 3"),
-      $palette_item("#2D3748", "palette4", "Palette Color 4"),
-      $palette_item("#4A5568", "palette5", "Palette Color 5"),
-      $palette_item("#718096", "palette6", "Palette Color 6"),
-      $palette_item("#EDF2F7", "palette7", "Palette Color 7"),
-      $palette_item("#F7FAFC", "palette8", "Palette Color 8"),
-      $palette_item("#ffffff", "palette9", "Palette Color 9"),
-      $palette_item($secondary, "palette10", "Palette Color Complement"),
-      $palette_item("#13612e", "palette11", "Palette Color Success"),
-      $palette_item("#1159af", "palette12", "Palette Color Info"),
-      $palette_item("#b82105", "palette13", "Palette Color Alert"),
-      $palette_item("#f7630c", "palette14", "Palette Color Warning"),
-      $palette_item("#f5a524", "palette15", "Palette Color Rating"),
-    );
-
-    update_option(
-      "kadence_global_palette",
-      wp_json_encode(
-        array(
-          "palette" => $active_palette,
-          "second-palette" => $active_palette,
-          "third-palette" => $active_palette,
-          "active" => "palette",
-        )
-      ),
-      false
-    );
-
-    set_theme_mod("link_color", array("highlight" => "palette1", "highlight-alt" => "palette2", "highlight-alt2" => "palette10", "style" => "standard"));
-    set_theme_mod("buttons_color", array("color" => "palette9", "hover" => "palette9"));
-    set_theme_mod("buttons_background", array("color" => "palette1", "hover" => "palette2"));
-    set_theme_mod("buttons_secondary_color", array("color" => "palette3", "hover" => "palette9"));
-    set_theme_mod("buttons_secondary_background", array("color" => "palette10", "hover" => "palette2"));
-    set_theme_mod("header_wrap_background", array("desktop" => array("color" => "palette1")));
-    set_theme_mod("header_main_background", array("desktop" => array("color" => "palette1")));
-    set_theme_mod("primary_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
-    set_theme_mod("mobile_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
-    set_theme_mod("footer_wrap_background", array("desktop" => array("color" => "palette1")));
-    set_theme_mod("footer_bottom_background", array("desktop" => array("color" => "palette1")));
-    set_theme_mod("footer_navigation_color", array("color" => "palette9", "hover" => "palette10", "active" => "palette10"));
-    set_theme_mod("logo_icon_color", array("color" => "palette9"));
-
-    $brand_typography = get_theme_mod("brand_typography", array());
-    if (!is_array($brand_typography)) {
-      $brand_typography = array();
-    }
-    $brand_typography["color"] = "palette9";
-    set_theme_mod("brand_typography", $brand_typography);
-
-    if (defined("WP_CLI") && WP_CLI) {
-      WP_CLI::success("Kadence branding configured.");
-    }
-  '
+  /usr/local/bin/apply-branding.sh
 
 # =========================
 # WooCommerce Page Setup
@@ -559,6 +486,9 @@ if ! $WP core is-installed; then
 else
   echo "WordPress ya estÃ¡ instalado."
 fi
+
+# Refresh managed colors on existing sites without importing content.
+/usr/local/bin/apply-branding.sh
 
 # =========================
 # Apache Startup

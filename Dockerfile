@@ -60,13 +60,36 @@ ENV WP_TITLE="Tienda Test" \
     MCP_BEARER_TOKEN="CHANGE_ME" \
     PRIMARY_COLOR="#2f6f4e" \
     SECONDARY_COLOR="#f2c14e" \
-    ACCENT_COLOR="#c44536"
+    ACCENT_COLOR="#c44536" \
+    TEXT_STRONG_COLOR="#1a202c" \
+    TEXT_COLOR="#2d3748" \
+    TEXT_MUTED_COLOR="#4a5568" \
+    BORDER_COLOR="#718096" \
+    BACKGROUND_SUBTLE_COLOR="#edf2f7" \
+    BACKGROUND_COLOR="#f7fafc" \
+    SURFACE_COLOR="#ffffff" \
+    SUCCESS_COLOR="#13612e" \
+    INFO_COLOR="#1159af" \
+    ALERT_COLOR="#b82105" \
+    WARNING_COLOR="#f7630c" \
+    RATING_COLOR="#f5a524" \
+    ON_PRIMARY_COLOR=auto \
+    ON_ACCENT_COLOR=auto \
+    ON_SECONDARY_COLOR=auto \
+    HEADER_BACKGROUND_COLOR="" \
+    HEADER_TEXT_COLOR=auto \
+    HEADER_HOVER_COLOR=auto \
+    FOOTER_BACKGROUND_COLOR="" \
+    FOOTER_TEXT_COLOR=auto \
+    FOOTER_HOVER_COLOR=auto
 
 COPY start.sh /start.sh
 COPY import-complete-theme.sh /usr/local/bin/import-complete-theme.sh
+COPY apply-branding.sh /usr/local/bin/apply-branding.sh
+COPY branding.php apply-branding.php branding-styles.php /usr/local/lib/wp-image/
 
-RUN sed -i 's/\r$//' /start.sh /usr/local/bin/import-complete-theme.sh \
-    && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh
+RUN sed -i 's/\r$//' /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh \
+    && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh
 
 EXPOSE 80
 
