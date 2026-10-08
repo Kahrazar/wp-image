@@ -121,77 +121,7 @@ COMPLETE_THEME_SOURCE_URL="${SOURCE_URL}" \
 COMPLETE_THEME_TARGET_URL="${TARGET_URL}" \
 COMPLETE_THEME_TARGET_DOMAIN="${TARGET_DOMAIN}" \
 COMPLETE_THEME_KEEP_BOOKING_TERMS="${KEEP_BOOKING_TERMS}" \
-php -r '
-$input = $argv[1];
-$output = $argv[2];
-
-$source = rtrim(getenv("COMPLETE_THEME_SOURCE_URL") ?: "http://localhost:8081", "/");
-$target = rtrim(getenv("COMPLETE_THEME_TARGET_URL") ?: "", "/");
-$domain = getenv("COMPLETE_THEME_TARGET_DOMAIN") ?: "";
-$site_title = getenv("WP_TITLE") ?: "Tienda";
-$city = getenv("STORE_CITY") ?: "";
-$address = getenv("STORE_ADDRESS") ?: "";
-$country = getenv("STORE_COUNTRY") ?: "";
-$postcode = getenv("STORE_POSTCODE") ?: "";
-$address_short = trim($city !== "" ? $city : $address);
-$address_exact = trim(implode(", ", array_filter(array($address, $city, $country))));
-if ($postcode !== "") {
-    $address_exact = trim($address_exact . " " . $postcode);
-}
-
-$data = file_get_contents($input);
-if ($data === false) {
-    fwrite(STDERR, "No se pudo leer el XML del template.\n");
-    exit(1);
-}
-
-if ($source !== "" && $target !== "") {
-    $data = str_replace($source, $target, $data);
-}
-
-$data = preg_replace_callback(
-    "/\\s*<item>.*?<\\/item>/s",
-    function ($matches) {
-        return strpos($matches[0], "<wp:post_type>attachment</wp:post_type>") === false
-            ? $matches[0]
-            : "";
-    },
-    $data
-);
-
-if (getenv("COMPLETE_THEME_KEEP_BOOKING_TERMS") !== "1") {
-    $data = preg_replace_callback(
-        "/\\s*<wp:term>.*?<\\/wp:term>/s",
-        function ($matches) {
-            return strpos($matches[0], "<wp:term_taxonomy>ttbm_") === false
-                ? $matches[0]
-                : "";
-        },
-        $data
-    );
-}
-
-$replacements = array(
-    "{{EI_WEBSITE_TITLE}}" => getenv("EI_WEBSITE_TITLE") ?: $site_title,
-    "{{EI_WEBSITE_BUSINESS}}" => getenv("EI_WEBSITE_BUSINESS") ?: $site_title,
-    "{{EI_WEBSITE_DOMAIN}}" => getenv("EI_WEBSITE_DOMAIN") ?: $domain,
-    "{{EI_WEBSITE_ADDRESS}}" => getenv("EI_WEBSITE_ADDRESS") ?: $address_short,
-    "{{EI_WEBSITE_EXACT_ADDRESS}}" => getenv("EI_WEBSITE_EXACT_ADDRESS") ?: $address_exact,
-    "{{EI_WEBSITE_SLOGAN}}" => getenv("EI_WEBSITE_SLOGAN") ?: $site_title,
-    "{{EI_WEBSITE_SLOGAN_SUBTEXT}}" => getenv("EI_WEBSITE_SLOGAN_SUBTEXT") ?: "Bienvenido a " . $site_title,
-    "{{EI_WEBSITE_HISTORY_SLOGAN}}" => getenv("EI_WEBSITE_HISTORY_SLOGAN") ?: "Nuestra historia",
-    "{{EI_EMPRENDE_MISSION_TEXT}}" => getenv("EI_EMPRENDE_MISSION_TEXT") ?: "",
-    "{{EI_EMPRENDE_PHILOSOPHY_TEXT}}" => getenv("EI_EMPRENDE_PHILOSOPHY_TEXT") ?: "",
-    "{{EI_EMPRENDE_WEBSITE_FOUNDATION_TEXT}}" => getenv("EI_EMPRENDE_WEBSITE_FOUNDATION_TEXT") ?: "",
-);
-
-$data = strtr($data, $replacements);
-
-if (file_put_contents($output, $data) === false) {
-    fwrite(STDERR, "No se pudo escribir el XML preparado.\n");
-    exit(1);
-}
-' "${CONTENT_XML}" "${PREPARED_XML}"
+php /usr/local/lib/wp-image/prepare-complete-theme.php "${CONTENT_XML}" "${PREPARED_XML}"
 
 WP_CONTENT_DIR="$("${WP[@]}" eval 'echo WP_CONTENT_DIR;')"
 

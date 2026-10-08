@@ -87,6 +87,7 @@ COPY start.sh /start.sh
 COPY import-complete-theme.sh /usr/local/bin/import-complete-theme.sh
 COPY apply-branding.sh /usr/local/bin/apply-branding.sh
 COPY branding.php apply-branding.php branding-styles.php /usr/local/lib/wp-image/
+COPY template-content.php prepare-complete-theme.php /usr/local/lib/wp-image/
 
 RUN sed -i 's/\r$//' /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh \
     && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh
