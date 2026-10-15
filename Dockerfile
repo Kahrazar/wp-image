@@ -1,5 +1,8 @@
 FROM wordpress:latest
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# Use Composer with the image's PHP so dependency platform checks match runtime.
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 
 RUN apt-get update \
     && apt-get install -y mariadb-server mariadb-client curl git \
@@ -13,15 +16,24 @@ RUN curl -fsSL https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-
 RUN mkdir -p /root/.wp-cli \
     && printf "apache_modules:\n  - mod_rewrite\n" > /root/.wp-cli/config.yml
 
-ARG SHOPIA_PLUGIN_REPO=https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git
-ARG SHOPIA_PLUGIN_REF=main
+ARG SHOPIA_PLUGIN_REPO=https://github.com/QuintanillaAdrian/chatbot-assistant.git
+ARG SHOPIA_PLUGIN_REF=a9fc47bd3b3648f44cfaf1b1b8939011d7e288bc
 
-# Shopia is temporarily omitted until the upstream repo restores a valid
-# WordPress plugin bootstrap file.
-# RUN mkdir -p /local-plugins \
-#     && git clone --depth 1 --branch "$SHOPIA_PLUGIN_REF" "$SHOPIA_PLUGIN_REPO" \
-#     /local-plugins/shopia-chatbot-assistant \
-#     && rm -rf /local-plugins/shopia-chatbot-assistant/.git
+RUN php -r 'if (version_compare(PHP_VERSION, "8.2", "<") || !extension_loaded("mbstring") || (!extension_loaded("bcmath") && !extension_loaded("gmp"))) { fwrite(STDERR, "ShopIA requires PHP 8.2+, mbstring and bcmath or gmp.\n"); exit(1); }' \
+    && mkdir -p /local-plugins/shopia-chatbot-assistant \
+    && cd /local-plugins/shopia-chatbot-assistant \
+    && git init \
+    && git remote add origin "$SHOPIA_PLUGIN_REPO" \
+    && git fetch --depth 1 origin "$SHOPIA_PLUGIN_REF" \
+    && git checkout --detach FETCH_HEAD \
+    && git rev-parse HEAD > .wp-image-source-revision \
+    && rm -rf .git \
+    && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader \
+    && composer check-platform-reqs --no-dev \
+    && test -f chatbot-assistant.php \
+    && php -r 'require "vendor/autoload.php"; $h = new Hashids\Hashids("build-check"); if ($h->decode($h->encode(123)) !== [123]) { exit(1); }' \
+    && find . -type f ! -name '.wp-image-bundle.sha256' -print0 \
+       | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | cut -d ' ' -f 1 > .wp-image-bundle.sha256
 
 ARG COMPLETE_THEME_REPO=https://github.com/Kahrazar/wp-complete-theme.git
 ARG COMPLETE_THEME_REF=main
@@ -37,7 +49,8 @@ ENV WP_TITLE="Tienda Test" \
     WP_ADMIN_EMAIL=admin@test.com \
     WC_CURRENCY=CRC \
     BOOKING_ENABLED=false \
-    SITE_DOMAIN=https://domain.com \
+    MARKETPLACE=false \
+    SITE_DOMAIN="" \
     STORE_COUNTRY="CR:SJ" \
     STORE_CITY="Heredia" \
     STORE_ADDRESS="Heredia" \
@@ -51,13 +64,12 @@ ENV WP_TITLE="Tienda Test" \
     DEMO_PRODUCTS_FILE="" \
     DEMO_PRODUCTS_JSON="" \
     DEMO_PRODUCTS_B64="" \
-    SHOPIA_PLUGIN_REPO="https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git" \
-    SHOPIA_PLUGIN_REF="main" \
+    SHOPIA_ENABLED=true \
+    CHATBOT_BACKEND_URL="" \
     COMPLETE_THEME_REPO="https://github.com/Kahrazar/wp-complete-theme.git" \
     COMPLETE_THEME_REF="main" \
     COMPLETE_THEME_DIR="/local-templates/wp-complete-theme" \
     COMPLETE_THEME_IMPORT_ENABLED=true \
-    MCP_BEARER_TOKEN="CHANGE_ME" \
     PRIMARY_COLOR="#2f6f4e" \
     SECONDARY_COLOR="#f2c14e" \
     ACCENT_COLOR="#c44536" \
@@ -86,11 +98,16 @@ ENV WP_TITLE="Tienda Test" \
 COPY start.sh /start.sh
 COPY import-complete-theme.sh /usr/local/bin/import-complete-theme.sh
 COPY apply-branding.sh /usr/local/bin/apply-branding.sh
+COPY install-shopia.sh provision-shopia.sh install-dokan.sh /usr/local/bin/
+COPY shopia-common.sh /usr/local/lib/wp-image/shopia-common.sh
 COPY branding.php apply-branding.php branding-styles.php /usr/local/lib/wp-image/
 COPY template-content.php prepare-complete-theme.php /usr/local/lib/wp-image/
+COPY php-memory.ini /usr/local/etc/php/conf.d/zz-wp-image-memory.ini
 
 RUN sed -i 's/\r$//' /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh \
-    && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh
+       /usr/local/bin/install-shopia.sh /usr/local/bin/provision-shopia.sh /usr/local/bin/install-dokan.sh /usr/local/lib/wp-image/shopia-common.sh \
+    && chmod +x /start.sh /usr/local/bin/import-complete-theme.sh /usr/local/bin/apply-branding.sh \
+       /usr/local/bin/install-shopia.sh /usr/local/bin/provision-shopia.sh /usr/local/bin/install-dokan.sh
 
 EXPOSE 80
 

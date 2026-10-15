@@ -40,6 +40,9 @@ cd /var/www/html
 WP="php -d memory_limit=512M /usr/local/bin/wp --allow-root"
 WP_PROTOCOL="${WP_PROTOCOL:-https}"
 WP_LOCALE="${WP_LOCALE:-es_ES}"
+# Pulumi supplies the canonical public URL; keep fresh-install database URLs
+# consistent with the URL used by ShopIA and WooCommerce API validation.
+WP_URL="${WP_HOME:-${WP_URL:-http://localhost:8080}}"
 
 case "$WP_PROTOCOL" in
   http|HTTP)
@@ -99,7 +102,12 @@ if [ ! -f wp-config.php ]; then
     print "if ($wp_protocol === \"https\") {"
     print "    $_SERVER[\"HTTPS\"] = \"on\";"
     print "}"
-    print "if (isset($_SERVER[\"HTTP_HOST\"])) {"
+    print "$wp_home = getenv(\"WP_HOME\");"
+    print "$wp_siteurl = getenv(\"WP_SITEURL\") ?: $wp_home;"
+    print "if ($wp_home && $wp_siteurl) {"
+    print "    define(\"WP_HOME\", $wp_home);"
+    print "    define(\"WP_SITEURL\", $wp_siteurl);"
+    print "} elseif (isset($_SERVER[\"HTTP_HOST\"])) {"
     print "    define(\"WP_HOME\", $wp_protocol . \"://\" . $_SERVER[\"HTTP_HOST\"]);"
     print "    define(\"WP_SITEURL\", $wp_protocol . \"://\" . $_SERVER[\"HTTP_HOST\"]);"
     print "}"
@@ -128,7 +136,7 @@ echo "Base de datos verificada."
 # WordPress Installation
 # =========================
 
-if ! $WP core is-installed; then
+if ! $WP --skip-plugins=shopia-chatbot-assistant core is-installed; then
 
   echo "Instalando WordPress..."
 
@@ -444,39 +452,6 @@ if ! $WP core is-installed; then
   esac
 
 # =========================
-# Shopia Chatbot Assistant Plugin Setup
-# =========================
-
-  echo "Shopia Chatbot Assistant omitido temporalmente."
-
-  if false; then
-    echo "Instalando Shopia Chatbot Assistant..."
-
-    if [ ! -d /local-plugins/shopia-chatbot-assistant ]; then
-      echo "Descargando Shopia Chatbot Assistant..."
-      mkdir -p /local-plugins
-      git clone --depth 1 --branch "${SHOPIA_PLUGIN_REF:-main}" \
-        "${SHOPIA_PLUGIN_REPO:-https://github.com/QuintanillaAdrian/shopia-chatbot-assistant.git}" \
-        /local-plugins/shopia-chatbot-assistant
-      rm -rf /local-plugins/shopia-chatbot-assistant/.git
-    fi
-
-    mkdir -p /var/www/html/wp-content/plugins
-    rm -rf /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-    cp -r /local-plugins/shopia-chatbot-assistant \
-      /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-
-    chown -R www-data:www-data /var/www/html/wp-content/plugins/shopia-chatbot-assistant
-
-    if ! $WP plugin is-active shopia-chatbot-assistant; then
-      echo "Ejecutando provisioning de Shopia..."
-      $WP plugin activate shopia-chatbot-assistant
-      $WP mcp request provision --generate_keys=1 --persist_secret=1
-    fi
-    echo "Finalizo la ejecucion de Shopia"
-  fi
-
-# =========================
 # Complete Theme Import
 # =========================
 
@@ -486,6 +461,14 @@ if ! $WP core is-installed; then
 else
   echo "WordPress ya estÃ¡ instalado."
 fi
+
+# Manage the bundled plugin on fresh and retained installations without
+# rerunning content import or deleting the plugin's database credentials.
+/usr/local/bin/install-shopia.sh
+
+# Run after the full theme import so it cannot delete Dokan's generated pages.
+# Retained installations can change marketplace state without content reimport.
+/usr/local/bin/install-dokan.sh
 
 # Refresh managed colors on existing sites without importing content.
 /usr/local/bin/apply-branding.sh
